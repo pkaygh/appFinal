@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CCST Student Hub</title>
+    <style>
+        :root { --primary: #004080; --bg: #f4f6f9; --text: #2c3e50; --sidebar: #00264d; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); -webkit-tap-highlight-color: transparent; }
+        
+        #loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; }
+        .spinner { width: 50px; height: 50px; border: 5px solid #ddd; border-top: 5px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        header { background: var(--primary); color: white; padding: 15px; display: flex; align-items: center; position: sticky; top: 0; z-index: 1000; }
+        #sidebar { position: fixed; left: -280px; top: 0; width: 280px; height: 100%; background: var(--sidebar); color: white; transition: 0.3s; z-index: 1001; padding-top: 60px; }
+        #sidebar.active { left: 0; }
+        #sidebar a { display: block; padding: 15px 25px; color: white; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer; }
+
+        .container { padding: 20px; max-width: 800px; margin: auto; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px; text-align: center; }
+        .hidden { display: none; }
+        input, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; font-size: 16px; }
+        button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div id="loader"><div class="spinner"></div><p>Processing...</p></div>
+
+<div id="sidebar">
+    <a onclick="showPage('dashPage')">🏠 Dashboard</a>
+    <a onclick="showPage('profilePage')">👤 My Profile</a>
+    <a onclick="showPage('financePage')">💳 Finance</a>
+    <a onclick="location.reload()" style="color: #ff4d4d; margin-top: 50px;">🚪 Logout</a>
+</div>
+
+<header id="mainHeader" class="hidden">
+    <span onclick="toggleMenu()" style="font-size:24px; cursor:pointer; margin-right:15px;">☰</span>
+    <span>CCST PORTAL</span>
+</header>
+
+<div id="loginPage" class="container">
+    <div class="card" style="margin-top: 50px;">
+        <h2 style="color: var(--primary);">Student Login</h2>
+        <input id="stuId" placeholder="Student ID">
+        <input id="stuPass" type="password" placeholder="Password">
+        <button onclick="handleAuth('login')">LOGIN</button>
+        <button onclick="handleAuth('register')" style="background:#27ae60;">REGISTER ACCOUNT</button>
+    </div>
+</div>
+
+<div id="dashPage" class="container hidden page">
+    <div class="card">
+        <h2 id="greet"></h2>
+        <p id="newsBox" style="background:#fff3cd; padding:15px; border-radius:8px;"></p>
+    </div>
+</div>
+
+<div id="profilePage" class="container hidden page">
+    <div class="card">
+        <img id="userPhoto" src="https://via.placeholder.com/150" style="width:150px; height:150px; border-radius:50%; object-fit:cover; border:4px solid var(--primary);">
+        <h2 id="profileName"></h2>
+        <input type="file" id="photoInput" accept="image/*">
+        <button onclick="uploadPhoto()">UPDATE PHOTO</button>
+    </div>
+</div>
+
+<div id="financePage" class="container hidden page">
+    <div class="card">
+        <h2>Financial Summary</h2>
+        <h1 id="userBal" style="color: #e74c3c;"></h1>
+    </div>
+</div>
+
+<script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzu4S8q-_dXggYWq7D8aNbiWwdXlJoZiZZz09ASKfe1yxJWW-S3Ef0ddpvm1OdjUa9qkA/exec";
+    let userData = null;
+
+    function showLoading(s) { document.getElementById('loader').style.display = s ? 'flex' : 'none'; }
+    function toggleMenu() { document.getElementById('sidebar').classList.toggle('active'); }
+    function showPage(id) {
+        document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+        if(document.getElementById('sidebar').classList.contains('active')) toggleMenu();
+    }
+
+    async function hash(p) {
+        const buf = new TextEncoder().encode(p);
+        const h = await crypto.subtle.digest('SHA-256', buf);
+        return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2,'0')).join('');
+    }
+
+    async function handleAuth(type) {
+        const id = document.getElementById('stuId').value.trim();
+        const rawPass = document.getElementById('stuPass').value;
+        if (!id || !rawPass) return alert("Enter ID and Password");
+        
+        showLoading(true);
+        const pass = await hash(rawPass);
+
+        try {
+            if (type === 'register') {
+                await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'register', id, password: pass })});
+                showLoading(false);
+                alert("✅ Registered Successfully!");
+                return;
+            }
+
+            const res = await fetch(`${SCRIPT_URL}?id=${id}&password=${pass}`);
+            const data = await res.json();
+            showLoading(false);
+
+            if (data.error) return alert(data.error);
+
+            userData = { ...data.profile, id };
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            showPage('dashPage');
+
+            document.getElementById('greet').innerText = "Welcome, " + data.profile.name;
+            document.getElementById('newsBox').innerText = data.announcement;
+            document.getElementById('userBal').innerText = "GHC " + data.profile.balance;
+            document.getElementById('profileName').innerText = data.profile.name;
+            if(data.profile.photoUrl) document.getElementById('userPhoto').src = data.profile.photoUrl;
+        } catch (e) { showLoading(false); alert("Connection Error"); }
+    }
+
+    async function uploadPhoto() {
+        const file = document.getElementById('photoInput').files[0];
+        if (!file) return alert("Select a photo first");
+        showLoading(true);
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const base64 = e.target.result.split(',')[1];
+            const params = new URLSearchParams({ action: 'upload', filename: userData.id + ".jpg", mimeType: file.type, data: base64, stuId: userData.id });
+            await fetch(SCRIPT_URL + "?" + params.toString(), { method: 'POST' });
+            showLoading(false);
+            alert("✅ Photo Uploaded!");
+        };
+        reader.readAsDataURL(file);
+    }
+</script>
+</body>
+</html>
